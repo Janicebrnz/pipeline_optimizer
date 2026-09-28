@@ -20,7 +20,7 @@ pipeline {
             steps {
                 echo 'Running unit tests...'
                 sleep 30
-                bat 'python -m pytest'
+                bat '"C:/Users/barne/AppData/Local/Programs/Python/Python314/python.exe" -m pytest'
             }
         }
 
