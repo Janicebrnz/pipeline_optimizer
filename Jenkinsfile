@@ -16,12 +16,12 @@ pipeline {
             }
         }
 
-      stage('Unit Tests') {
+  stage('Unit Tests') {
     steps {
         echo 'Checking Python...'
-        bat '"C:/Users/barne/AppData/Local/Programs/Python/Python314/python.exe" --version'
+        bat 'C:/Users/barne/AppData/Local/Programs/Python/Python314/python.exe --version'
         echo 'Running unit tests...'
-        bat '"C:/Users/barne/AppData/Local/Programs/Python/Python314/python.exe" -m pytest
+        bat 'C:/Users/barne/AppData/Local/Programs/Python/Python314/python.exe -m pytest'
     }
 }
 
