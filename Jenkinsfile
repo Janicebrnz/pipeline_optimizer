@@ -16,13 +16,14 @@ pipeline {
             }
         }
 
-        stage('Unit Tests') {
-            steps {
-                echo 'Running unit tests...'
-                sleep 30
-                bat '"C:/Users/barne/AppData/Local/Programs/Python/Python314/python.exe" -m pytest'
-            }
-        }
+      stage('Unit Tests') {
+    steps {
+        echo 'Checking Python...'
+        bat '"C:/Users/barne/AppData/Local/Programs/Python/Python314/python.exe" --version'
+        echo 'Running unit tests...'
+        bat '"C:/Users/barne/AppData/Local/Programs/Python/Python314/python.exe" -m pytest
+    }
+}
 
         stage('Security Check') {
             steps {
