@@ -3,49 +3,36 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
         stage('Build') {
             steps {
                 echo 'Building application...'
-                sleep 20
-                echo 'Build completed successfully.'
+                sleep 5
             }
         }
 
-        stage('Unit Tests') {
-            steps {
-                echo 'Running unit tests...'
-                sleep 10
-                echo 'Unit tests completed successfully.'
-            }
-        }
+        stage('Quality Checks') {
+            parallel {
 
-        stage('Security Check') {
-            steps {
-                echo 'Running security checks...'
-                sleep 10
-                echo 'Security checks completed successfully.'
-            }
-        }
+                stage('Test') {
+                    steps {
+                        echo 'Running tests...'
+                        sleep 5
+                    }
+                }
 
-        stage('Package') {
-            steps {
-                echo 'Packaging application...'
-                sleep 10
-                echo 'Packaging completed successfully.'
+                stage('Security Scan') {
+                    steps {
+                        echo 'Running security scan...'
+                        sleep 5
+                    }
+                }
             }
         }
 
         stage('Deploy') {
             steps {
                 echo 'Deploying application...'
-                sleep 10
-                echo 'Deployment completed successfully.'
+                sleep 5
             }
         }
     }
