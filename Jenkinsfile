@@ -14,10 +14,7 @@ pipeline {
             parallel {
 
                 stage('Test') {
-                    steps {
-                        echo 'Running tests...'
-                        sleep 5
-                    }
+
                 }
 
                 stage('Security Scan') {
