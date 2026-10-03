@@ -12,7 +12,7 @@ const fs = require('fs');
 
 const ctx = JSON.parse(fs.readFileSync('context.json', 'utf8'));
 const KEY = process.env.GEMINI_API_KEY;
-const MODELS = (process.env.GEMINI_MODELS || 'gemini-2.5-flash,gemini-2.5-flash-lite')
+const MODELS = (process.env.GEMINI_MODELS || 'gemini-3.8-flash,gemini-3.5-flash-lite')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
