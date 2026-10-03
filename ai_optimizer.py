@@ -13,7 +13,9 @@ if not API_KEY:
 
 
 def get_changed_files():
+
     try:
+
         result = subprocess.run(
             ["git", "diff", "--name-only", "HEAD~1", "HEAD"],
             capture_output=True,
@@ -27,7 +29,11 @@ def get_changed_files():
 
         return "No changed files detected."
 
-    except Exception:
+    except Exception as error:
+
+        print("Could not determine changed files:")
+        print(error)
+
         return "Unable to determine changed files."
 
 
@@ -40,12 +46,12 @@ requirements_changed = (
 
 prompt = f"""
 You are an AI optimization engine operating inside a Jenkins
-continuous integration pipeline.
+CI/CD pipeline.
 
 Your task is to decide whether Python dependencies need to be
 installed again.
 
-Current Git commit changed these files:
+Changed files in the current Git commit:
 
 {changed_files}
 
@@ -54,15 +60,15 @@ requirements.txt changed:
 
 Decision rules:
 
-- If requirements.txt changed, dependencies MUST be installed.
-- If requirements.txt did not change, the existing dependency
-  environment/cache can be reused.
+1. If requirements.txt changed, return RUN_INSTALL.
 
-Return ONLY one of these two values:
+2. If requirements.txt did not change, return USE_CACHE.
+
+Return ONLY:
 
 RUN_INSTALL
 
-or
+or:
 
 USE_CACHE
 
@@ -73,15 +79,21 @@ Do not return any other text.
 
 
 request_data = {
+
     "contents": [
+
         {
             "parts": [
+
                 {
                     "text": prompt
                 }
+
             ]
         }
+
     ]
+
 }
 
 
@@ -96,12 +108,17 @@ data = json.dumps(request_data).encode("utf-8")
 
 
 request = urllib.request.Request(
+
     url,
+
     data=data,
+
     headers={
         "Content-Type": "application/json"
     },
+
     method="POST"
+
 )
 
 
@@ -119,37 +136,52 @@ try:
             .strip()
         )
 
+
         print("")
         print("======================================")
         print("       GEMINI AI OPTIMIZER")
         print("======================================")
+
         print("Changed files:")
         print(changed_files)
+
         print("")
+
         print("requirements.txt changed:")
         print(requirements_changed)
+
         print("")
+
         print("Gemini decision:")
         print(ai_response)
+
         print("======================================")
         print("")
 
 
         if "RUN_INSTALL" in ai_response:
 
-            with open("ai_decision.txt", "w") as file:
+            with open(
+                "ai_decision.txt",
+                "w"
+            ) as file:
+
                 file.write("RUN_INSTALL")
 
 
         elif "USE_CACHE" in ai_response:
 
-            with open("ai_decision.txt", "w") as file:
+            with open(
+                "ai_decision.txt",
+                "w"
+            ) as file:
+
                 file.write("USE_CACHE")
 
 
         else:
 
-            print("ERROR: Invalid Gemini decision.")
+            print("ERROR: Invalid Gemini response.")
             exit(1)
 
 
@@ -157,6 +189,7 @@ except urllib.error.HTTPError as error:
 
     print("Gemini API error:")
     print(error.read().decode("utf-8"))
+
     exit(1)
 
 
@@ -164,4 +197,5 @@ except Exception as error:
 
     print("Gemini request failed:")
     print(error)
+
     exit(1)
