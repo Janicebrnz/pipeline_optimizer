@@ -9,7 +9,17 @@ pipeline {
     environment {
         GEMINI_API_KEY = credentials('gemini-api-key')
     }
+stage('Check Build Environment') {
+    steps {
+        powershell '''
+            Write-Host "Node version:"
+            node --version
 
+            Write-Host "NPM version:"
+            npm --version
+        '''
+    }
+}
     stages {
 
         stage('AI Dependency Optimizer') {
