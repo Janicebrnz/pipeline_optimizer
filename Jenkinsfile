@@ -25,7 +25,7 @@ pipeline {
 
                 echo 'Starting Gemini AI optimization...'
 
-                sh '''
+                bat '''
                     python3 ai_optimizer.py
                 '''
 
@@ -56,7 +56,7 @@ pipeline {
                         echo 'Installing Python dependencies...'
                         echo '======================================'
 
-                        sh '''
+                        bat '''
                             python3 -m pip install -r requirements.txt
                         '''
 
@@ -90,7 +90,7 @@ pipeline {
 
                 echo 'Running Python tests...'
 
-                sh '''
+                bat '''
                     python3 -m unittest test_app.py
                 '''
             }
