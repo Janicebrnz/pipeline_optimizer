@@ -13,64 +13,50 @@ pipeline {
     stages {
 
         stage('Check Build Environment') {
-
             steps {
-
                 echo '======================================'
-                echo 'Checking Node.js and npm...'
+                echo 'Checking Node.js and npm'
                 echo '======================================'
 
                 powershell '''
-                    Write-Host "Node version:"
                     node --version
-
-                    Write-Host "NPM version:"
                     npm --version
                 '''
             }
         }
 
-
         stage('AI Dependency Optimizer') {
-
             steps {
 
                 echo '======================================'
-                echo 'Starting Gemini AI optimization...'
+                echo 'AI Dependency Optimization'
                 echo '======================================'
 
                 powershell '''
 
-                    # ----------------------------------------
                     # Detect changed files
-                    # ----------------------------------------
-
                     $changedFiles = git diff --name-only HEAD~1 HEAD
-
-                    if (-not $changedFiles) {
-                        $changedFiles = "No changed files detected"
-                    }
 
                     Write-Host ""
                     Write-Host "Changed files:"
                     Write-Host $changedFiles
                     Write-Host ""
 
-                    # Check dependency lock file
+                    # Check dependency changes
                     $dependencyChanged = $changedFiles -contains "package-lock.json"
 
+                    # IMPORTANT:
+                    # Check whether lodash is actually installed
+                    $nodeModulesExists = Test-Path "node_modules/lodash"
+
                     Write-Host "package-lock.json changed: $dependencyChanged"
+                    Write-Host "lodash installed: $nodeModulesExists"
                     Write-Host ""
 
 
-                    # ----------------------------------------
-                    # Create Gemini prompt
-                    # ----------------------------------------
-
+                    # Gemini prompt
                     $prompt = @"
-You are an AI optimization engine inside a Jenkins CI/CD pipeline.
-
-Your task is to decide whether npm dependencies need to be installed again.
+You are an AI dependency optimization engine inside a Jenkins CI/CD pipeline.
 
 Changed files:
 $changedFiles
@@ -78,12 +64,15 @@ $changedFiles
 package-lock.json changed:
 $dependencyChanged
 
-Rules:
+lodash installed:
+$nodeModulesExists
 
-If package-lock.json changed:
+Decision rules:
+
+If package-lock.json changed OR lodash is not installed:
 return RUN_INSTALL
 
-If package-lock.json did not change:
+Otherwise:
 return USE_CACHE
 
 Return ONLY:
@@ -93,16 +82,10 @@ RUN_INSTALL
 or:
 
 USE_CACHE
-
-Do not provide explanations.
-Do not provide markdown.
 "@
 
 
-                    # ----------------------------------------
-                    # Gemini request body
-                    # ----------------------------------------
-
+                    # Create Gemini request
                     $body = @{
                         contents = @(
                             @{
@@ -116,10 +99,7 @@ Do not provide markdown.
                     } | ConvertTo-Json -Depth 10
 
 
-                    # ----------------------------------------
                     # Gemini API
-                    # ----------------------------------------
-
                     $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
 
                     $headers = @{
@@ -127,12 +107,10 @@ Do not provide markdown.
                     }
 
 
-                    # ----------------------------------------
-                    # Try Gemini
-                    # ----------------------------------------
-
-                    $response = $null
+                    # Call Gemini
                     $geminiSuccess = $false
+                    $decision = ""
+
 
                     try {
 
@@ -145,114 +123,54 @@ Do not provide markdown.
                             -ContentType "application/json" `
                             -Body $body
 
+                        $decision = $response.candidates[0].content.parts[0].text.Trim()
+
                         $geminiSuccess = $true
+
+                        Write-Host ""
+                        Write-Host "Gemini response:"
+                        Write-Host $decision
+                        Write-Host ""
 
                     }
 
                     catch {
 
                         Write-Host ""
-                        Write-Host "Gemini API request failed."
+                        Write-Host "Gemini API unavailable."
+                        Write-Host "Using safe fallback decision."
+                        Write-Host ""
 
-                        $statusCode = $_.Exception.Response.StatusCode.value__
-
-                        Write-Host "HTTP Status Code: $statusCode"
-
-                        if ($statusCode -eq 429) {
-
-                            Write-Host ""
-                            Write-Host "Gemini API returned HTTP 429."
-                            Write-Host "Too many requests / quota limit reached."
-                            Write-Host "Gemini decision cannot be obtained right now."
-
-                        }
-
-                        else {
-
-                            Write-Host "Gemini API error:"
-                            Write-Host $_.Exception.Message
-                        }
                     }
 
 
-                    # ----------------------------------------
-                    # Process Gemini response
-                    # ----------------------------------------
+                    # Process Gemini decision
+                    if ($geminiSuccess -and $decision -match "RUN_INSTALL") {
 
-                    if ($geminiSuccess) {
+                        "RUN_INSTALL" | Out-File `
+                            -FilePath ai_decision.txt `
+                            -Encoding ascii
 
-                        $decision = $response.candidates[0].content.parts[0].text.Trim()
+                        Write-Host "Decision source: Gemini AI"
+                        Write-Host "Final decision: RUN_INSTALL"
 
-                        Write-Host ""
-                        Write-Host "======================================"
-                        Write-Host "GEMINI AI DECISION"
-                        Write-Host "======================================"
-                        Write-Host $decision
-                        Write-Host "======================================"
-                        Write-Host ""
+                    }
 
+                    elseif ($geminiSuccess -and $decision -match "USE_CACHE") {
 
-                        if ($decision -match "RUN_INSTALL") {
+                        "USE_CACHE" | Out-File `
+                            -FilePath ai_decision.txt `
+                            -Encoding ascii
 
-                            "RUN_INSTALL" | Out-File `
-                                -FilePath ai_decision.txt `
-                                -Encoding ascii
-
-                            Write-Host "Decision source: Gemini AI"
-                        }
-
-                        elseif ($decision -match "USE_CACHE") {
-
-                            "USE_CACHE" | Out-File `
-                                -FilePath ai_decision.txt `
-                                -Encoding ascii
-
-                            Write-Host "Decision source: Gemini AI"
-                        }
-
-                        else {
-
-                            Write-Host "Gemini returned an invalid decision."
-
-                            if ($dependencyChanged) {
-
-                                "RUN_INSTALL" | Out-File `
-                                    -FilePath ai_decision.txt `
-                                    -Encoding ascii
-
-                                Write-Host "Fallback decision: RUN_INSTALL"
-
-                            }
-
-                            else {
-
-                                "USE_CACHE" | Out-File `
-                                    -FilePath ai_decision.txt `
-                                    -Encoding ascii
-
-                                Write-Host "Fallback decision: USE_CACHE"
-                            }
-                        }
+                        Write-Host "Decision source: Gemini AI"
+                        Write-Host "Final decision: USE_CACHE"
 
                     }
 
                     else {
 
-                        # ----------------------------------------
-                        # Gemini unavailable
-                        # Use safe fallback
-                        # ----------------------------------------
-
-                        Write-Host ""
-                        Write-Host "======================================"
-                        Write-Host "GEMINI UNAVAILABLE"
-                        Write-Host "======================================"
-                        Write-Host "Using fallback dependency decision."
-                        Write-Host "======================================"
-                        Write-Host ""
-
-
-                        if ($dependencyChanged) {
+                        # Safe fallback
+                        if ($dependencyChanged -or !$nodeModulesExists) {
 
                             "RUN_INSTALL" | Out-File `
                                 -FilePath ai_decision.txt `
@@ -271,6 +189,7 @@ Do not provide markdown.
                             Write-Host "Fallback decision: USE_CACHE"
                         }
                     }
+
                 '''
 
 
@@ -278,7 +197,9 @@ Do not provide markdown.
 
                     def decision = readFile('ai_decision.txt').trim()
 
-                    echo "Final Dependency Decision: ${decision}"
+                    echo "======================================"
+                    echo "FINAL AI DECISION: ${decision}"
+                    echo "======================================"
 
                     env.AI_DECISION = decision
                 }
@@ -298,39 +219,27 @@ Do not provide markdown.
                     if (env.AI_DECISION == 'RUN_INSTALL') {
 
                         echo '======================================'
-                        echo 'DEPENDENCY DECISION: RUN_INSTALL'
-                        echo 'Running npm dependency installation...'
+                        echo 'RUN_INSTALL'
+                        echo 'Installing dependencies with npm ci'
                         echo '======================================'
 
-
                         powershell '''
-
-                            Write-Host "Installing npm dependencies..."
-
                             npm ci
-
-                            Write-Host "npm dependency installation completed."
-
                         '''
                     }
-
 
                     else if (env.AI_DECISION == 'USE_CACHE') {
 
                         echo '======================================'
-                        echo 'DEPENDENCY DECISION: USE_CACHE'
-                        echo 'Skipping npm dependency installation.'
-                        echo 'Using existing dependency state.'
+                        echo 'USE_CACHE'
+                        echo 'Skipping dependency installation'
+                        echo 'Using existing node_modules'
                         echo '======================================'
                     }
 
-
                     else {
 
-                        error(
-                            "Invalid dependency decision: "
-                            + env.AI_DECISION
-                        )
+                        error("Invalid AI decision: ${env.AI_DECISION}")
                     }
 
 
@@ -339,10 +248,7 @@ Do not provide markdown.
                     def duration =
                         (endTime - startTime) / 1000.0
 
-
-                    echo '======================================'
                     echo "Dependency Management Time: ${duration} seconds"
-                    echo '======================================'
                 }
             }
         }
@@ -353,13 +259,11 @@ Do not provide markdown.
             steps {
 
                 echo '======================================'
-                echo 'Running application build...'
+                echo 'BUILDING APPLICATION'
                 echo '======================================'
 
                 powershell '''
-
                     npm run build
-
                 '''
             }
         }
@@ -371,23 +275,22 @@ Do not provide markdown.
         always {
 
             echo '======================================'
-            echo 'Jenkins pipeline completed.'
+            echo 'PIPELINE COMPLETED'
             echo '======================================'
         }
-
 
         success {
 
             echo '======================================'
-            echo 'AI-optimized pipeline completed successfully.'
+            echo 'SUCCESS: AI-OPTIMIZED PIPELINE'
             echo '======================================'
         }
-
 
         failure {
 
             echo '======================================'
-            echo 'Pipeline failed. Check console output.'
+            echo 'PIPELINE FAILED'
+            echo 'Check the console output.'
             echo '======================================'
         }
     }
