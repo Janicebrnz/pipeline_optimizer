@@ -77,7 +77,7 @@ Do not provide markdown.
                         )
                     } | ConvertTo-Json -Depth 10
 
-                    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$env:GEMINI_API_KEY"
+                    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$env:GEMINI_API_KEY"
 
                     $response = Invoke-RestMethod `
                         -Uri $url `
