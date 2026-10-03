@@ -1,36 +1,121 @@
 pipeline {
+
     agent any
+
+    environment {
+        GEMINI_API_KEY = credentials('gemini-api-key')
+    }
 
     stages {
 
-        stage('Build') {
+        stage('Checkout') {
+
             steps {
-                echo 'Building application...'
-                sleep 5
+
+                echo 'Checking out source code...'
+
+                checkout scm
             }
         }
 
-        stage('Quality Checks') {
-            parallel {
 
-                stage('Test') {
+        stage('AI Pipeline Optimizer') {
 
+            steps {
+
+                echo 'Running Gemini AI optimization...'
+
+                sh '''
+                    node ai_optimizer.js
+                '''
+
+                script {
+
+                    def decision =
+                        readFile('ai_decision.txt').trim()
+
+                    echo "AI Decision: ${decision}"
+
+                    env.AI_DECISION = decision
                 }
+            }
+        }
 
-                stage('Security Scan') {
-                    steps {
-                        echo 'Running security scan...'
-                        sleep 5
+
+        stage('Dependency Management') {
+
+            steps {
+
+                script {
+
+                    if (env.AI_DECISION == 'RUN_INSTALL') {
+
+                        echo 'AI detected dependency changes.'
+                        echo 'Installing npm dependencies...'
+
+                        sh '''
+                            npm ci
+                        '''
+
+                    } else {
+
+                        echo 'AI detected no dependency changes.'
+                        echo 'Using npm cache...'
+
+                        sh '''
+                            npm cache verify
+                        '''
                     }
                 }
             }
         }
 
-        stage('Deploy') {
+
+        stage('Build') {
+
             steps {
-                echo 'Deploying application...'
-                sleep 5
+
+                echo 'Building application...'
+
+                sh '''
+                    npm run build
+                '''
             }
+        }
+
+
+        stage('Test') {
+
+            steps {
+
+                echo 'Running tests...'
+
+                sh '''
+                    npm test -- --runInBand
+                '''
+            }
+        }
+    }
+
+
+    post {
+
+        always {
+
+            echo 'Pipeline execution completed.'
+
+        }
+
+        success {
+
+            echo 'SUCCESS: AI-optimized Jenkins pipeline completed.'
+
+        }
+
+        failure {
+
+            echo 'Pipeline failed. Check the console output.'
+
         }
     }
 }
