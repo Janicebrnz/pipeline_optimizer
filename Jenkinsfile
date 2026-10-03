@@ -12,21 +12,21 @@ pipeline {
 
             steps {
 
-                echo 'Checking out source code...'
+                echo 'Checking out GitHub repository...'
 
                 checkout scm
             }
         }
 
 
-        stage('AI Pipeline Optimizer') {
+        stage('AI Dependency Optimizer') {
 
             steps {
 
-                echo 'Running Gemini AI optimization...'
+                echo 'Starting Gemini AI optimization...'
 
                 sh '''
-                    node ai_optimizer.js
+                    python3 ai_optimizer.py
                 '''
 
                 script {
@@ -34,7 +34,7 @@ pipeline {
                     def decision =
                         readFile('ai_decision.txt').trim()
 
-                    echo "AI Decision: ${decision}"
+                    echo "Gemini AI Decision: ${decision}"
 
                     env.AI_DECISION = decision
                 }
@@ -50,48 +50,48 @@ pipeline {
 
                     if (env.AI_DECISION == 'RUN_INSTALL') {
 
-                        echo 'AI detected dependency changes.'
-                        echo 'Installing npm dependencies...'
+                        echo '======================================'
+                        echo 'AI DECISION: RUN_INSTALL'
+                        echo 'requirements.txt changed.'
+                        echo 'Installing Python dependencies...'
+                        echo '======================================'
 
                         sh '''
-                            npm ci
+                            python3 -m pip install -r requirements.txt
                         '''
 
-                    } else {
+                    }
 
-                        echo 'AI detected no dependency changes.'
-                        echo 'Using npm cache...'
+                    else if (env.AI_DECISION == 'USE_CACHE') {
 
-                        sh '''
-                            npm cache verify
-                        '''
+                        echo '======================================'
+                        echo 'AI DECISION: USE_CACHE'
+                        echo 'requirements.txt unchanged.'
+                        echo 'Skipping dependency installation.'
+                        echo '======================================'
+
+                    }
+
+                    else {
+
+                        error(
+                            "Invalid AI decision: "
+                            + env.AI_DECISION
+                        )
                     }
                 }
             }
         }
 
 
-        stage('Build') {
+        stage('Run Tests') {
 
             steps {
 
-                echo 'Building application...'
+                echo 'Running Python tests...'
 
                 sh '''
-                    npm run build
-                '''
-            }
-        }
-
-
-        stage('Test') {
-
-            steps {
-
-                echo 'Running tests...'
-
-                sh '''
-                    npm test -- --runInBand
+                    python3 -m unittest test_app.py
                 '''
             }
         }
@@ -102,20 +102,19 @@ pipeline {
 
         always {
 
-            echo 'Pipeline execution completed.'
-
+            echo '======================================'
+            echo 'Jenkins pipeline completed.'
+            echo '======================================'
         }
 
         success {
 
-            echo 'SUCCESS: AI-optimized Jenkins pipeline completed.'
-
+            echo 'AI-optimized pipeline completed successfully.'
         }
 
         failure {
 
-            echo 'Pipeline failed. Check the console output.'
-
+            echo 'Pipeline failed. Check console output.'
         }
     }
 }
