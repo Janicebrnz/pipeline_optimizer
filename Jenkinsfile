@@ -2,31 +2,26 @@ pipeline {
 
     agent any
 
+    options {
+        timestamps()
+    }
+
     environment {
         GEMINI_API_KEY = credentials('gemini-api-key')
     }
 
     stages {
 
-        stage('Checkout') {
-
-            steps {
-
-                echo 'Checking out GitHub repository...'
-
-                checkout scm
-            }
-        }
-
-
         stage('AI Dependency Optimizer') {
 
             steps {
 
+                echo '======================================'
                 echo 'Starting Gemini AI optimization...'
+                echo '======================================'
 
                 bat '''
-                    python3 ai_optimizer.py
+                    python ai_optimizer.py
                 '''
 
                 script {
@@ -34,7 +29,9 @@ pipeline {
                     def decision =
                         readFile('ai_decision.txt').trim()
 
+                    echo '======================================'
                     echo "Gemini AI Decision: ${decision}"
+                    echo '======================================'
 
                     env.AI_DECISION = decision
                 }
@@ -52,12 +49,11 @@ pipeline {
 
                         echo '======================================'
                         echo 'AI DECISION: RUN_INSTALL'
-                        echo 'requirements.txt changed.'
                         echo 'Installing Python dependencies...'
                         echo '======================================'
 
                         bat '''
-                            python3 -m pip install -r requirements.txt
+                            python -m pip install -r requirements.txt
                         '''
 
                     }
@@ -66,8 +62,8 @@ pipeline {
 
                         echo '======================================'
                         echo 'AI DECISION: USE_CACHE'
-                        echo 'requirements.txt unchanged.'
                         echo 'Skipping dependency installation.'
+                        echo 'Using existing Python environment.'
                         echo '======================================'
 
                     }
@@ -75,7 +71,7 @@ pipeline {
                     else {
 
                         error(
-                            "Invalid AI decision: "
+                            "Invalid Gemini AI decision: "
                             + env.AI_DECISION
                         )
                     }
@@ -88,10 +84,12 @@ pipeline {
 
             steps {
 
+                echo '======================================'
                 echo 'Running Python tests...'
+                echo '======================================'
 
                 bat '''
-                    python3 -m unittest test_app.py
+                    python -m unittest test_app.py
                 '''
             }
         }
@@ -109,12 +107,16 @@ pipeline {
 
         success {
 
+            echo '======================================'
             echo 'AI-optimized pipeline completed successfully.'
+            echo '======================================'
         }
 
         failure {
 
+            echo '======================================'
             echo 'Pipeline failed. Check console output.'
+            echo '======================================'
         }
     }
 }
