@@ -41,7 +41,10 @@ pipeline {
 
                 powershell '''
 
-                    # Get files changed in the latest commit
+                    # ----------------------------------------
+                    # Detect changed files
+                    # ----------------------------------------
+
                     $changedFiles = git diff --name-only HEAD~1 HEAD
 
                     if (-not $changedFiles) {
@@ -53,14 +56,17 @@ pipeline {
                     Write-Host $changedFiles
                     Write-Host ""
 
-                    # Check whether dependency lock file changed
+                    # Check dependency lock file
                     $dependencyChanged = $changedFiles -contains "package-lock.json"
 
                     Write-Host "package-lock.json changed: $dependencyChanged"
                     Write-Host ""
 
 
-                    # Gemini prompt
+                    # ----------------------------------------
+                    # Create Gemini prompt
+                    # ----------------------------------------
+
                     $prompt = @"
 You are an AI optimization engine inside a Jenkins CI/CD pipeline.
 
@@ -93,7 +99,10 @@ Do not provide markdown.
 "@
 
 
-                    # Create Gemini API request
+                    # ----------------------------------------
+                    # Gemini request body
+                    # ----------------------------------------
+
                     $body = @{
                         contents = @(
                             @{
@@ -107,57 +116,160 @@ Do not provide markdown.
                     } | ConvertTo-Json -Depth 10
 
 
-                    # Gemini API endpoint
+                    # ----------------------------------------
+                    # Gemini API
+                    # ----------------------------------------
+
                     $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
 
-
-                    # API authentication
                     $headers = @{
                         "x-goog-api-key" = $env:GEMINI_API_KEY
                     }
 
 
-                    # Send request to Gemini
-                    $response = Invoke-RestMethod `
-                        -Uri $url `
-                        -Method Post `
-                        -Headers $headers `
-                        -ContentType "application/json" `
-                        -Body $body
+                    # ----------------------------------------
+                    # Try Gemini
+                    # ----------------------------------------
 
+                    $response = $null
+                    $geminiSuccess = $false
 
-                    # Extract Gemini decision
-                    $decision = $response.candidates[0].content.parts[0].text.Trim()
+                    try {
 
+                        Write-Host "Sending request to Gemini..."
 
-                    Write-Host ""
-                    Write-Host "======================================"
-                    Write-Host "GEMINI AI DECISION"
-                    Write-Host "======================================"
-                    Write-Host $decision
-                    Write-Host "======================================"
-                    Write-Host ""
+                        $response = Invoke-RestMethod `
+                            -Uri $url `
+                            -Method Post `
+                            -Headers $headers `
+                            -ContentType "application/json" `
+                            -Body $body
 
+                        $geminiSuccess = $true
 
-                    # Validate and save decision
-                    if ($decision -match "RUN_INSTALL") {
-
-                        "RUN_INSTALL" | Out-File `
-                            -FilePath ai_decision.txt `
-                            -Encoding ascii
                     }
 
-                    elseif ($decision -match "USE_CACHE") {
+                    catch {
 
-                        "USE_CACHE" | Out-File `
-                            -FilePath ai_decision.txt `
-                            -Encoding ascii
+                        Write-Host ""
+                        Write-Host "Gemini API request failed."
+
+                        $statusCode = $_.Exception.Response.StatusCode.value__
+
+                        Write-Host "HTTP Status Code: $statusCode"
+
+                        if ($statusCode -eq 429) {
+
+                            Write-Host ""
+                            Write-Host "Gemini API returned HTTP 429."
+                            Write-Host "Too many requests / quota limit reached."
+                            Write-Host "Gemini decision cannot be obtained right now."
+
+                        }
+
+                        else {
+
+                            Write-Host "Gemini API error:"
+                            Write-Host $_.Exception.Message
+                        }
+                    }
+
+
+                    # ----------------------------------------
+                    # Process Gemini response
+                    # ----------------------------------------
+
+                    if ($geminiSuccess) {
+
+                        $decision = $response.candidates[0].content.parts[0].text.Trim()
+
+                        Write-Host ""
+                        Write-Host "======================================"
+                        Write-Host "GEMINI AI DECISION"
+                        Write-Host "======================================"
+                        Write-Host $decision
+                        Write-Host "======================================"
+                        Write-Host ""
+
+
+                        if ($decision -match "RUN_INSTALL") {
+
+                            "RUN_INSTALL" | Out-File `
+                                -FilePath ai_decision.txt `
+                                -Encoding ascii
+
+                            Write-Host "Decision source: Gemini AI"
+                        }
+
+                        elseif ($decision -match "USE_CACHE") {
+
+                            "USE_CACHE" | Out-File `
+                                -FilePath ai_decision.txt `
+                                -Encoding ascii
+
+                            Write-Host "Decision source: Gemini AI"
+                        }
+
+                        else {
+
+                            Write-Host "Gemini returned an invalid decision."
+
+                            if ($dependencyChanged) {
+
+                                "RUN_INSTALL" | Out-File `
+                                    -FilePath ai_decision.txt `
+                                    -Encoding ascii
+
+                                Write-Host "Fallback decision: RUN_INSTALL"
+
+                            }
+
+                            else {
+
+                                "USE_CACHE" | Out-File `
+                                    -FilePath ai_decision.txt `
+                                    -Encoding ascii
+
+                                Write-Host "Fallback decision: USE_CACHE"
+                            }
+                        }
+
                     }
 
                     else {
 
-                        Write-Error "Invalid Gemini response: $decision"
-                        exit 1
+                        # ----------------------------------------
+                        # Gemini unavailable
+                        # Use safe fallback
+                        # ----------------------------------------
+
+                        Write-Host ""
+                        Write-Host "======================================"
+                        Write-Host "GEMINI UNAVAILABLE"
+                        Write-Host "======================================"
+                        Write-Host "Using fallback dependency decision."
+                        Write-Host "======================================"
+                        Write-Host ""
+
+
+                        if ($dependencyChanged) {
+
+                            "RUN_INSTALL" | Out-File `
+                                -FilePath ai_decision.txt `
+                                -Encoding ascii
+
+                            Write-Host "Fallback decision: RUN_INSTALL"
+
+                        }
+
+                        else {
+
+                            "USE_CACHE" | Out-File `
+                                -FilePath ai_decision.txt `
+                                -Encoding ascii
+
+                            Write-Host "Fallback decision: USE_CACHE"
+                        }
                     }
                 '''
 
@@ -166,7 +278,7 @@ Do not provide markdown.
 
                     def decision = readFile('ai_decision.txt').trim()
 
-                    echo "Gemini AI Decision: ${decision}"
+                    echo "Final Dependency Decision: ${decision}"
 
                     env.AI_DECISION = decision
                 }
@@ -180,14 +292,13 @@ Do not provide markdown.
 
                 script {
 
-                    // Start timing
                     def startTime = System.currentTimeMillis()
 
 
                     if (env.AI_DECISION == 'RUN_INSTALL') {
 
                         echo '======================================'
-                        echo 'AI DECISION: RUN_INSTALL'
+                        echo 'DEPENDENCY DECISION: RUN_INSTALL'
                         echo 'Running npm dependency installation...'
                         echo '======================================'
 
@@ -207,7 +318,7 @@ Do not provide markdown.
                     else if (env.AI_DECISION == 'USE_CACHE') {
 
                         echo '======================================'
-                        echo 'AI DECISION: USE_CACHE'
+                        echo 'DEPENDENCY DECISION: USE_CACHE'
                         echo 'Skipping npm dependency installation.'
                         echo 'Using existing dependency state.'
                         echo '======================================'
@@ -217,13 +328,12 @@ Do not provide markdown.
                     else {
 
                         error(
-                            "Invalid AI decision: "
+                            "Invalid dependency decision: "
                             + env.AI_DECISION
                         )
                     }
 
 
-                    // End timing
                     def endTime = System.currentTimeMillis()
 
                     def duration =
@@ -268,13 +378,17 @@ Do not provide markdown.
 
         success {
 
+            echo '======================================'
             echo 'AI-optimized pipeline completed successfully.'
+            echo '======================================'
         }
 
 
         failure {
 
+            echo '======================================'
             echo 'Pipeline failed. Check console output.'
+            echo '======================================'
         }
     }
 }
