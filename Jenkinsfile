@@ -28,8 +28,11 @@ pipeline {
 
         stage('AI Dependency Decision (Gemini)') {
             steps {
-                // 'gemini-api-key' = the ID of your Jenkins "Secret text" credential
-                withCredentials([string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY')]) {
+                // Two Jenkins "Secret text" credentials: gemini-api-key and groq-api-key
+                withCredentials([
+                    string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY'),
+                    string(credentialsId: 'groq-api-key', variable: 'GROQ_API_KEY')
+                ]) {
                     withEnv(["SIMULATE_AI_FAILURE=${params.SIMULATE_AI_FAILURE}"]) {
                         bat 'node ci\\decide.js'
                     }
