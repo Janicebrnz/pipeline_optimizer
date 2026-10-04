@@ -2,6 +2,8 @@ pipeline {
     agent any   // change to: agent { label 'your-windows-agent-label' } if needed
 
     parameters {
+        choice(name: 'AI_PROVIDERS', choices: ['gemini,groq', 'groq,gemini'],
+               description: 'Which LLM to ask first. Pick groq,gemini to demo the Groq (Llama) provider')
         booleanParam(name: 'SIMULATE_AI_FAILURE', defaultValue: false,
                      description: 'Tick to skip Gemini on purpose and demo the fallback decision')
     }
@@ -33,7 +35,7 @@ pipeline {
                     string(credentialsId: 'gemini-api-key', variable: 'GEMINI_API_KEY'),
                     string(credentialsId: 'groq-api-key', variable: 'GROQ_API_KEY')
                 ]) {
-                    withEnv(["SIMULATE_AI_FAILURE=${params.SIMULATE_AI_FAILURE}"]) {
+                    withEnv(["SIMULATE_AI_FAILURE=${params.SIMULATE_AI_FAILURE}", "AI_PROVIDERS=${params.AI_PROVIDERS}"]) {
                         bat 'node ci\\decide.js'
                     }
                 }
